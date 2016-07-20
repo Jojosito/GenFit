@@ -611,7 +611,8 @@ double MaterialEffects::dEdxBrems(double mom) const
 
   // Code ported from GEANT 3 (gbrele.F)
 
-  if (abs(pdg_) != 11) return 0; // only for electrons and positrons
+  if (abs(pdg_) != 11)
+    return 0; // only for electrons and positrons
 
 #if !defined(BETHE)
   static const double C[101] = { 0.0, -0.960613E-01, 0.631029E-01, -0.142819E-01, 0.150437E-02, -0.733286E-04, 0.131404E-05, 0.859343E-01, -0.529023E-01, 0.131899E-01, -0.159201E-02, 0.926958E-04, -0.208439E-05, -0.684096E+01, 0.370364E+01, -0.786752E+00, 0.822670E-01, -0.424710E-02, 0.867980E-04, -0.200856E+01, 0.129573E+01, -0.306533E+00, 0.343682E-01, -0.185931E-02, 0.392432E-04, 0.127538E+01, -0.515705E+00, 0.820644E-01, -0.641997E-02, 0.245913E-03, -0.365789E-05, 0.115792E+00, -0.463143E-01, 0.725442E-02, -0.556266E-03, 0.208049E-04, -0.300895E-06, -0.271082E-01, 0.173949E-01, -0.452531E-02, 0.569405E-03, -0.344856E-04, 0.803964E-06, 0.419855E-02, -0.277188E-02, 0.737658E-03, -0.939463E-04, 0.569748E-05, -0.131737E-06, -0.318752E-03, 0.215144E-03, -0.579787E-04, 0.737972E-05, -0.441485E-06, 0.994726E-08, 0.938233E-05, -0.651642E-05, 0.177303E-05, -0.224680E-06, 0.132080E-07, -0.288593E-09, -0.245667E-03, 0.833406E-04, -0.129217E-04, 0.915099E-06, -0.247179E-07, 0.147696E-03, -0.498793E-04, 0.402375E-05, 0.989281E-07, -0.133378E-07, -0.737702E-02, 0.333057E-02, -0.553141E-03, 0.402464E-04, -0.107977E-05, -0.641533E-02, 0.290113E-02, -0.477641E-03, 0.342008E-04, -0.900582E-06, 0.574303E-05, 0.908521E-04, -0.256900E-04, 0.239921E-05, -0.741271E-07, -0.341260E-04, 0.971711E-05, -0.172031E-06, -0.119455E-06, 0.704166E-08, 0.341740E-05, -0.775867E-06, -0.653231E-07, 0.225605E-07, -0.114860E-08, -0.119391E-06, 0.194885E-07, 0.588959E-08, -0.127589E-08, 0.608247E-10};
@@ -622,93 +623,89 @@ double MaterialEffects::dEdxBrems(double mom) const
   static const double xi = 2.10, beta = 1.00, vl = 0.001;
 #endif
 
-  double BCUT = 10000.; // energy up to which soft bremsstrahlung energy loss is calculated
-
   static const double THIGH = 100., CHIGH = 50.;
   double dedxBrems = 0.;
 
-  if (BCUT > 0.) {
-    double T, kc;
+  double T, kc;
+  double BCUT = mom;
 
-    if (BCUT > mom) BCUT = mom; // confine BCUT to mom_
-
-    // T=mom_,  confined to THIGH
-    // kc=BCUT, confined to CHIGH ??
-    if (mom > THIGH) {
-      T = THIGH;
-      if (BCUT >= THIGH)
-        kc = CHIGH;
-      else
-        kc = BCUT;
-    } else {
-      T = mom;
+  // T=mom_,  confined to THIGH
+  // kc=BCUT, confined to CHIGH ??
+  if (mom > THIGH) {
+    T = THIGH;
+    if (BCUT >= THIGH)
+      kc = CHIGH;
+    else
       kc = BCUT;
+  } else {
+    T = mom;
+    kc = BCUT;
+  }
+
+  double E = T + me_;
+  if (BCUT > T)
+    kc = T;
+
+  double X = log(T / me_);
+  double Y = log(kc / (E * vl));
+
+  double XX;
+  int    K;
+  double S = 0., YY = 1.;
+
+  for (unsigned int I = 1; I <= 2; ++I) {
+    XX = 1.;
+    for (unsigned int J = 1; J <= 6; ++J) {
+      K = 6 * I + J - 6;
+      S += C[K] * XX * YY;
+      XX *= X;
     }
+    YY *= Y;
+  }
 
-    double E = T + me_; // total electron energy
-    if (BCUT > T)
-      kc = T;
-
-    double X = log(T / me_);
-    double Y = log(kc / (E * vl));
-
-    double XX;
-    int    K;
-    double S = 0., YY = 1.;
-
-    for (unsigned int I = 1; I <= 2; ++I) {
-      XX = 1.;
-      for (unsigned int J = 1; J <= 6; ++J) {
-        K = 6 * I + J - 6;
-        S += C[K] * XX * YY;
-        XX *= X;
-      }
-      YY *= Y;
+  for (unsigned int I = 3; I <= 6; ++I) {
+    XX = 1.;
+    for (unsigned int J = 1; J <= 6; ++J) {
+      K = 6 * I + J - 6;
+      if (Y > 0.)
+        K += 24;
+      S += C[K] * XX * YY;
+      XX *= X;
     }
+    YY *= Y;
+  }
 
-    for (unsigned int I = 3; I <= 6; ++I) {
-      XX = 1.;
-      for (unsigned int J = 1; J <= 6; ++J) {
-        K = 6 * I + J - 6;
-        if (Y > 0.)
-          K += 24;
-        S += C[K] * XX * YY;
-        XX *= X;
-      }
-      YY *= Y;
+  double SS = 0.;
+  YY = 1.;
+
+  for (unsigned int I = 1; I <= 2; ++I) {
+    XX = 1.;
+    for (unsigned int J = 1; J <= 5; ++J) {
+      K = 5 * I + J + 55;
+      SS += C[K] * XX * YY;
+      XX *= X;
     }
+    YY *= Y;
+  }
 
-    double SS = 0.;
-    YY = 1.;
-
-    for (unsigned int I = 1; I <= 2; ++I) {
-      XX = 1.;
-      for (unsigned int J = 1; J <= 5; ++J) {
-        K = 5 * I + J + 55;
-        SS += C[K] * XX * YY;
-        XX *= X;
-      }
-      YY *= Y;
+  for (unsigned int I = 3; I <= 5; ++I) {
+    XX = 1.;
+    for (unsigned int J = 1; J <= 5; ++J) {
+      K = 5 * I + J + 55;
+      if (Y > 0.)
+        K += 15;
+      SS += C[K] * XX * YY;
+      XX *= X;
     }
+    YY *= Y;
+  }
 
-    for (unsigned int I = 3; I <= 5; ++I) {
-      XX = 1.;
-      for (unsigned int J = 1; J <= 5; ++J) {
-        K = 5 * I + J + 55;
-        if (Y > 0.)
-          K += 15;
-        SS += C[K] * XX * YY;
-        XX *= X;
-      }
-      YY *= Y;
-    }
+  S += matZ_ * SS;
 
-    S += matZ_ * SS;
-
-    if (S > 0.) {
-      double CORR = 1.;
+  if (S > 0.) {
+    double CORR = 1.;
 #if !defined(BETHE)
-      CORR = 1. / (1. + 0.805485E-10 * matDensity_ * matZ_ * E * E / (matA_ * kc * kc)); // MIGDAL correction factor
+    CORR = 1. / (1. + 0.805485E-10 * matDensity_ * matZ_ * E * E / (matA_ * kc * kc)); // MIGDAL correction factor
 #endif
 
       // We use exp(beta * log(...) here because pow(..., beta) is
@@ -740,25 +737,25 @@ double MaterialEffects::dEdxBrems(double mom) const
         dedxBrems *= S; // GeV barn
       }
 
-      dedxBrems *= 0.60221367 * matDensity_ / matA_; // energy loss dE/dx [GeV/cm]
-    }
+    dedxBrems *= 0.60221367 * matDensity_ / matA_; // energy loss dE/dx [GeV/cm]
   }
 
   if (dedxBrems < 0.)
     dedxBrems = 0;
 
-  double factor = 1.; // positron correction factor
+  double factor = 1.; // positron correction factor (gcbrem.F)
 
   if (pdg_ == -11) {
     static const double AA = 7522100., A1 = 0.415, A3 = 0.0021, A5 = 0.00054;
 
     double ETA = 0.;
     if (matZ_ > 0.) {
-      double X = log(AA * mom / (matZ_ * matZ_));
-      if (X > -8.) {
-        if (X >= +9.) ETA = 1.;
+      double x = log(AA * mom / (matZ_ * matZ_));
+      if (x > -8.) {
+        if (x >= +9.)
+          ETA = 1.;
         else {
-          double W = A1 * X + A3 * pow(X, 3.) + A5 * pow(X, 5.);
+          double W = A1 * x + A3 * pow(x, 3.) + A5 * pow(x, 5.);
           ETA = 0.5 + atan(W) / M_PI;
         }
       }
@@ -790,14 +787,20 @@ void MaterialEffects::noiseBrems(M7x7& noise, double momSquare, double betaSquar
   // the factor  1.44 is not in the original Bethe-Heitler model.
   // It seems to be some empirical correction copied over from some other project.
 
-  if (abs(pdg_) != 11) return; // only for electrons and positrons
+  if (abs(pdg_) != 11)
+    return; // only for electrons and positrons
 
   double minusXOverLn2  = -1.442695 * fabs(stepSize_) / radiationLength_;
-  double sigma2E = 1.44*(pow(3., minusXOverLn2) - pow(4., minusXOverLn2)) * momSquare;
-  sigma2E = std::max(sigma2E, 0.0); // must be positive
-  
-  // update noise matrix, using linear error propagation from E to q/p
-  noise[6 * 7 + 6] += charge_*charge_/betaSquare / pow(momSquare, 2) * sigma2E;
+  if (minusXOverLn2 < -25.)
+    return; // prevent floating point exceptions
+
+  double sigma2 = 1.44*(pow(3., minusXOverLn2) - pow(4., minusXOverLn2)); // sigma2E = sigma2 * momSquare
+  if (sigma2 <= 0)
+    return; // just for safety, should never happen
+
+  // update noise matrix
+  // noise[6 * 7 + 6] += charge_*charge_/betaSquare / pow(mom, 4) * sigma2E;
+  noise[6 * 7 + 6] += charge_*charge_/betaSquare * sigma2 / momSquare;
 }
 
 
